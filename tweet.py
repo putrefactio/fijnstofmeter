@@ -5,17 +5,17 @@ import sqlite3
 import sys
 import tweepy
 
-# set a default period.
+# Set a default period.
 period = 'hour'
 
-# number of measurements per period.
+# Number of measurements per period.
 # The sensor takes a measurement every 150 seconds.
 number_of_measurements = {
     'hour': 24,
     'day': 576
 }
 
-# see if we have an argument.
+# See if we have an argument.
 try:
     period = sys.argv[1]
 except IndexError:
@@ -113,11 +113,10 @@ def compensate_for_rh(measurement, rh):
     return measurement/correction
 
 
-# calculate a mean measurement per hour or per day.
+# Calculate a mean measurement per hour or per day.
 def calculate_mean(_period=24):
     conn = sqlite3.connect(
-        # This needs to be the absolute path when run as
-        # a cronjob!
+        # This needs to be the absolute path when run as a cronjob!
         'measurements.db')
     c = conn.cursor()
     c.execute(
@@ -126,18 +125,21 @@ def calculate_mean(_period=24):
     rows = c.fetchall()
     conn.close()
 
-    # Get the amount of time between now and the last measurement
+    # We always get a set amount of records back. We need to do some basic
+    # checking to make sure we are using 'fresh' data as the sensor might
+    # not always be up. This can probably be implemented in a better way!
+
+    # Get the amount of time between now and the earliest measurement
     # in the dataset.
     delta = datetime.datetime.now() - datetime.datetime.fromtimestamp(
         rows[-1][0])
 
-    # No older than
-    # 115% of `amount of measurements per period` * `measurement interval`
+    # Set an age limit in seconds of 115% of
+    # `amount of measurements per period` * `measurement interval`
     stale_limit = round((_period * 150) * 1.15)
 
-    # If the last measurement was more than the limit defined above, do
-    # not send a tweet as it might be incorrect.
-    # XXX This way of checking can be improved upon!
+    # If the last measurement is older than the limit defined above, do
+    # not send a tweet as our data is probably incorrect. Abort!
     if round(delta.total_seconds()) > stale_limit:
         sys.exit('Stale measurements, aborting.')
 
@@ -146,7 +148,7 @@ def calculate_mean(_period=24):
         'PM25': 0
     }
 
-    # now calculate means
+    # Calculate means.
     for row in rows:
         means['PM10'] += compensate_for_rh(row[1], row[3])
         means['PM25'] += compensate_for_rh(row[2], row[3])
@@ -159,13 +161,8 @@ def calculate_mean(_period=24):
 
 means = calculate_mean(number_of_measurements[period])
 
-verdict = {
-    'PM10': None,
-    'PM25': None
-}
 
-
-# compare means with our RIVM given range values and define a verdict.
+# Compare means with our RIVM given range values and define a verdict.
 def define_verdict(pm):
     _values = values[period][pm]
     if means[pm] < _values[verdict_terms[0]]:
@@ -183,11 +180,16 @@ def define_verdict(pm):
         return verdict_terms[4]
 
 
+verdict = {
+    'PM10': None,
+    'PM25': None
+}
+
 for key, item in verdict.items():
     verdict[key] = define_verdict(key)
 
-# We want to comnplain when either PM10 or PM2,5 is too high.
-# XXX This mechanism can be improved upon / symplified!
+# We want to comnplain when either PM10 or PM2,5 is too high. This
+# var will contain the worst verdict found.
 global_verdict = verdict_terms[
     max(
         verdict_terms.index(verdict['PM10']),

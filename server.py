@@ -1,54 +1,8 @@
-#!/usr/bin/env python
-
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from netaddr import IPAddress
 import json
 import sqlite3
-
-
-'''
-Body:
-
-{
-   "esp8266id":"102026",
-   "software_version":"NRZ-2018-107",
-   "sensordatavalues":[
-      {
-         "value_type":"SDS_P1",
-         "value":"4.40"
-      },
-      {
-         "value_type":"SDS_P2",
-         "value":"0.80"
-      },
-      {
-         "value_type":"temperature",
-         "value":"23.30"
-      },
-      {
-         "value_type":"humidity",
-         "value":"50.20"
-      },
-      {
-         "value_type":"samples",
-         "value":"582024"
-      },
-      {
-         "value_type":"min_micro",
-         "value":"243"
-      },
-      {
-         "value_type":"max_micro",
-         "value":"24684"
-      },
-      {
-         "value_type":"signal",
-         "value":"-68"
-      }
-   ]
-}
-'''
 
 
 class RequestHandler(BaseHTTPRequestHandler):
