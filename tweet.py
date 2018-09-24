@@ -4,6 +4,11 @@ import random
 import sqlite3
 import sys
 import tweepy
+import requests
+import os
+
+# Set the PM10 daily graph url. Change <sensor id> to the id of your luftdaten sensor 
+conf_luftdaten_graph_pm100_url = "https://www.madavi.de/sensor/images/sensor-esp8266-<sensor-id>-sds011-1-day.png"
 
 # Set a default period.
 period = 'hour'
@@ -267,8 +272,21 @@ def send_tweet():
     api = tweepy.API(auth)
 
     # Send tweet!
-    api.update_status(construct_tweet())
+    if period == 'hour':
+       api.update_status(construct_tweet())
 
+    else:
+        filename = 'temp.jpg'
+        request = requests.get(conf_luftdaten_graph_pm100_url, stream=True)
+        if request.status_code == 200:
+            with open(filename, 'wb') as image:
+                for chunk in request:
+                    image.write(chunk)
+
+            api.update_with_media(filename, construct_tweet())
+            os.remove(filename)
+        else:
+            print("Unable to download image")
 
 # Don't tweet good news.
 if global_verdict == 'goed' and period == 'hour':
