@@ -277,15 +277,21 @@ def send_tweet():
 
     else:
         filename = 'temp.jpg'
-        request = requests.get(conf_luftdaten_graph_pm100_url, stream=True)
-        if request.status_code == 200:
-            with open(filename, 'wb') as image:
-                for chunk in request:
-                    image.write(chunk)
-
-            api.update_with_media(filename, construct_tweet())
-            os.remove(filename)
+        try:
+            request = requests.get(conf_luftdaten_graph_pm100_url, timeout=10, stream=True)
+        except requests.ConnectionError:
+            print("Can't connect to the site")
+            api.update_status(construct_tweet())
         else:
+            if request.status_code == 200:
+                with open(filename, 'wb') as image:
+                    for chunk in request:
+                        image.write(chunk)
+
+                api.update_with_media(filename, construct_tweet())
+                os.remove(filename)
+            else:
+                api.update_status(construct_tweet())
             print("Unable to download image")
 
 # Don't tweet good news.
