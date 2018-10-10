@@ -3,6 +3,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from netaddr import IPAddress
 import json
 import sqlite3
+import urllib.request
+
+
+# see http://weerlive.nl/delen.php
+weerlive_api_key = '<weerlive_api_key>'
+location_coordinates = '<latitude,longitude>'
+wind_last_fetched = None
+wind_direction = None
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -33,6 +41,28 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(bytes('OK', "utf8"))
 
 
+def get_wind_direction(ts):
+    global wind_direction
+    global wind_last_fetched
+    if (wind_direction is not None and ts is not None):
+        delta = datetime.datetime.now() - datetime.datetime.fromtimestamp(ts)
+        if (delta.total_seconds() < 600):
+            # return existing value
+            return wind_direction
+    # fetch new wind direction
+    request = urllib.request.Request(
+        'http://weerlive.nl/api/json-data-10min.php'
+        '?key={}&locatie={}'.format(
+            weerlive_api_key,
+            location_coordinates
+        ))
+    response = urllib.request.urlopen(request).read()
+    data = json.loads(response.decode('utf-8'))['liveweer'][0]['windr']
+    wind_direction = data
+    wind_last_fetched = datetime.datetime.now()
+    return data
+
+
 def handle_measurement(measurements):
     for key, measurement in measurements.items():
         try:
@@ -40,19 +70,21 @@ def handle_measurement(measurements):
         except ValueError:
             print('Error parsing values')
             return
-
+    _wind_direction = get_wind_direction(wind_last_fetched)
     values = [
         datetime.now().timestamp(),
         measurements['PM10'],
         measurements['PM25'],
         measurements['TEMP'],
-        measurements['RH']
+        measurements['RH'],
+        _wind_direction
     ]
 
     conn = sqlite3.connect('measurements.db')
     c = conn.cursor()
     c .execute("INSERT INTO measurements (\
-        datetime, PM10, PM25, TEMP, RH) VALUES (?, ?, ?, ?, ?)", values)
+        datetime, PM10, PM25, TEMP, RH, WIND) \
+        VALUES (?, ?, ?, ?, ?, ?)", values)
     conn.commit()
     conn.close()
 
